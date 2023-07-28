@@ -1,6 +1,7 @@
 import { Button, Image, Rate, Table, Tag } from "antd";
 import deleteImage from "assets/image/Delete.svg";
 import editImage from "assets/image/Edit.svg";
+import LoadingComponent from "component/loading";
 import dayjs from "dayjs";
 import { KeywordAtom } from "module/list/recoil";
 import { useState } from "react";
@@ -18,22 +19,31 @@ const TableComponent = () => {
   const keywordSearch = useDebounce(keyword);
   const navigate = useNavigate();
 
-  const { data: dataQuery = [] } = useQuery([QUERY_LIST, keywordSearch], () => {
-    const config = {
-      url: "api/books",
-      params: {
-        search: keywordSearch,
-        page: 1,
-        limit: PAGE_SIZE,
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState("");
+
+  const { isLoading, data: dataSource } = useQuery(
+    [QUERY_LIST, keywordSearch, page],
+    () => {
+      const config = {
+        url: "api/books",
+        params: {
+          search: keywordSearch,
+          page: page,
+          limit: PAGE_SIZE,
+        },
+      };
+      return API.request(config);
+    },
+    {
+      onSuccess: (data) => {
+        setTotal(data.total);
       },
-    };
-    return API.request(config);
-  });
-  const data = dataQuery?.items;
+    }
+  );
 
   const [filteredInfo, setFilteredInfo] = useState({});
   const [sortedInfo, setSortedInfo] = useState({});
-
   const handleChange = (pagination, filters, sorter) => {
     setFilteredInfo(filters);
     setSortedInfo(sorter);
@@ -44,7 +54,7 @@ const TableComponent = () => {
       title: "Mã sách",
       dataIndex: "book_id",
       key: "book_id",
-      sorter: (a, b) => a.book_id.length - b.book_id.length,
+      sorter: (a, b) => a.book_id - b.book_id,
       sortOrder: sortedInfo.columnKey === "book_id" ? sortedInfo.order : null,
     },
     {
@@ -80,6 +90,7 @@ const TableComponent = () => {
       title: "Thể loại",
       dataIndex: "genre_and_votes",
       key: "genre_and_votes",
+      width: "20%",
       filters: [
         {
           text: "Select all",
@@ -178,7 +189,9 @@ const TableComponent = () => {
       dataIndex: "year_publish",
       key: "year_publish",
       filters: [],
-      sorter: (a, b) => a.year_publish - b.year_publish,
+      sorter: (a, b) =>
+        dayjs(new Date(a.year_publish)).valueOf() -
+        dayjs(new Date(b.year_publish)).valueOf(),
       sortOrder:
         sortedInfo.columnKey === "year_publish" ? sortedInfo.order : null,
       ellipsis: true,
@@ -220,18 +233,34 @@ const TableComponent = () => {
         const { id } = record;
         return (
           <div>
-            <Button onClick={() => navigate(`/books/${id}`)}>
-              <Image src={editImage} width={20} height={20} />
+            <Button onClick={() => navigate(`/books/${id}`)} type="link">
+              <Image src={editImage} width={20} height={20} preview={false} />
             </Button>
-            <Button>
-              <Image src={deleteImage} width={20} height={20} />
+            <Button type="link">
+              <Image src={deleteImage} width={20} height={20} preview={false} />
             </Button>
           </div>
         );
       },
     },
   ];
-  return <Table columns={columns} dataSource={data} onChange={handleChange} />;
+
+  if (isLoading) {
+    return <LoadingComponent />;
+  }
+
+  return (
+    <Table
+      columns={columns}
+      dataSource={dataSource?.items || []}
+      onChange={handleChange}
+      pagination={{
+        onChange: (page) => setPage(page),
+        total: total,
+        current: page,
+      }}
+    />
+  );
 };
 
 export default TableComponent;
